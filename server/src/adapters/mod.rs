@@ -79,7 +79,7 @@ pub fn models(name: &str) -> Vec<ModelOption> {
 
 /// Runs a command and returns its stdout, or "" if it fails.
 pub fn output(bin: &str, args: &[&str]) -> String {
-    std::process::Command::new(bin)
+    std::process::Command::new(resolve_bin(bin))
         .args(args)
         .stdin(Stdio::null())
         .stderr(Stdio::null())
@@ -108,13 +108,28 @@ pub fn installed() -> Vec<&'static str> {
         .into_iter()
         .filter(|n| {
             let bin = get(n).unwrap().bin();
-            std::process::Command::new("sh")
-                .args(["-c", &format!("command -v {bin}")])
-                .stdout(Stdio::null())
-                .status()
-                .is_ok_and(|s| s.success())
+            find_bin(bin).is_some()
         })
         .collect()
+}
+
+fn find_bin(bin: &str) -> Option<PathBuf> {
+    let paths = std::env::var_os("PATH")?;
+    for dir in std::env::split_paths(&paths) {
+        #[cfg(windows)]
+        let candidates = [format!("{bin}.exe"), format!("{bin}.cmd"), format!("{bin}.bat")];
+        #[cfg(not(windows))]
+        let candidates = [bin.to_string()];
+        for candidate in candidates {
+            let path = dir.join(candidate);
+            if path.is_file() { return Some(path); }
+        }
+    }
+    None
+}
+
+fn resolve_bin(bin: &str) -> PathBuf {
+    find_bin(bin).unwrap_or_else(|| PathBuf::from(bin))
 }
 
 /// Why a run was cut short.
@@ -131,17 +146,18 @@ pub async fn run(
     let args = adapter.args(&input, &mut out);
     out.drain(..).for_each(&mut emit);
 
-    let mut child = match Command::new(adapter.bin())
+    let mut command = Command::new(resolve_bin(adapter.bin()));
+    command
         .args(&args)
         .current_dir(&input.cwd)
         .envs(&input.env)
         .stdin(Stdio::null())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        .process_group(0) // own group, so stop kills the whole tree
-        .kill_on_drop(true)
-        .spawn()
-    {
+        .kill_on_drop(true);
+    #[cfg(unix)]
+    command.process_group(0);
+    let mut child = match command.spawn() {
         Ok(c) => c,
         Err(e) => return emit(AgentEvent::Error(format!("Couldn't start {}: {e}", adapter.bin()))),
     };
@@ -175,6 +191,7 @@ pub async fn run(
                 aborted = true;
                 if let Some(pid) = pid {
                     kill_group(pid, "TERM");
+                    #[cfg(unix)]
                     tokio::spawn(async move {
                         tokio::time::sleep(std::time::Duration::from_secs(5)).await;
                         kill_group(pid, "KILL");
@@ -197,11 +214,19 @@ pub async fn run(
     }
 }
 
+#[cfg(unix)]
 fn kill_group(pid: u32, signal: &str) {
     let _ = std::process::Command::new("kill")
         .args([format!("-{signal}"), "--".into(), format!("-{pid}")])
         .stderr(Stdio::null())
         .status();
+}
+
+#[cfg(windows)]
+fn kill_group(pid: u32, _signal: &str) {
+    let _ = std::process::Command::new("taskkill")
+        .args(["/PID", &pid.to_string(), "/T", "/F"])
+        .stdout(Stdio::null()).stderr(Stdio::null()).status();
 }
 
 /// One short line describing a tool call, for the "working" status.

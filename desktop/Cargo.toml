@@ -1,0 +1,12 @@
+[package]
+name = "superbot-desktop"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+tao = "0.37.2"
+wry = "0.57.2"
+windows-sys = { version = "0.61", features = ["Win32_Security", "Win32_UI_WindowsAndMessaging", "Win32_Foundation", "Win32_System_Threading"] }
+
+
+[workspace]

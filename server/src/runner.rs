@@ -190,8 +190,9 @@ impl App {
                 ("BOT_API".to_string(), self.cfg.api_url.clone()),
                 ("BOT_TOKEN".to_string(), self.cfg.bot_token.clone()),
             ]);
-            let path = std::env::var("PATH").unwrap_or_default();
-            env.insert("PATH".into(), format!("{}:{path}", self.cfg.bin_dir.display()));
+            let path = std::env::var_os("PATH").unwrap_or_default();
+            let paths = std::iter::once(self.cfg.bin_dir.clone()).chain(std::env::split_paths(&path));
+            env.insert("PATH".into(), std::env::join_paths(paths).expect("valid PATH").to_string_lossy().into_owned());
             if let Some(screens) = &self.screens
                 && let Some(info) = screens.ensure(&bot.id, |id| self.is_running(id)).await
             {
@@ -395,7 +396,7 @@ impl App {
 They talk to you in a chat app, like messaging a coworker. Finish work end to end.
 
 ## Your computer
-- You run on a Linux computer shared with the user's other Bots. Your working folder is {ws}.
+- You run on a computer shared with the user's other Bots. Your working folder is {ws}.
 - Files, browser sign-ins, and credentials on it are shared by all Bots. Keep durable work in clear project folders.
 
 ## Memory

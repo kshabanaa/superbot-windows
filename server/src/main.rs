@@ -37,9 +37,8 @@ fn env(key: &str, default: &str) -> String {
 }
 
 pub fn random_bytes(n: usize) -> Vec<u8> {
-    use std::io::Read;
     let mut b = vec![0u8; n];
-    std::fs::File::open("/dev/urandom").and_then(|mut f| f.read_exact(&mut b)).expect("read /dev/urandom");
+    getrandom::fill(&mut b).expect("secure random source");
     b
 }
 
@@ -136,9 +135,22 @@ async fn main() {
     // On SIGTERM/SIGINT: stop agents (queued work runs after restart), then exit.
     let shutdown_app = app.clone();
     tokio::spawn(async move {
+        #[cfg(unix)]
+        {
         use tokio::signal::unix::{signal, SignalKind};
         let (mut term, mut int) = (signal(SignalKind::terminate()).unwrap(), signal(SignalKind::interrupt()).unwrap());
         tokio::select! { _ = term.recv() => {}, _ = int.recv() => {} }
+        }
+        #[cfg(windows)]
+        if std::env::var_os("SUPERBOT_DESKTOP").is_some() {
+            let _ = tokio::task::spawn_blocking(|| {
+                use std::io::Read;
+                let mut byte = [0u8; 1];
+                let _ = std::io::stdin().read(&mut byte);
+            }).await;
+        } else {
+            tokio::signal::ctrl_c().await.expect("Ctrl-C handler");
+        }
         shutdown_app.shutdown();
         for _ in 0..60 {
             if shutdown_app.is_idle() {

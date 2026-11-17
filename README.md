@@ -108,3 +108,7 @@ Early. Chat with Bots on Claude Code, Codex, or Pi works, with memory, routines,
 ## License
 
 MIT
+
+## Windows desktop app
+
+For a native Windows window and build instructions, see [Windows desktop app](desktop/README.md).

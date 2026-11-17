@@ -51,7 +51,7 @@ pub fn browser_session(bot_id: &str) -> String {
 impl Screens {
     pub fn from_env(run_dir: PathBuf) -> Option<Screens> {
         let num = |k: &str, d: u64| crate::env(k, &d.to_string()).parse::<u64>().unwrap_or(d);
-        if crate::env("SCREENS", "on") == "off" || !on_path("Xvfb") || !on_path("openbox") {
+        if cfg!(windows) || crate::env("SCREENS", "on") == "off" || !on_path("Xvfb") || !on_path("openbox") {
             return None;
         }
         std::fs::create_dir_all(&run_dir).ok()?;
