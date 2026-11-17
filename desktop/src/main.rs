@@ -9,10 +9,25 @@ fn message(s: &str) {
     let title: Vec<u16> = "SuperBot".encode_utf16().chain(Some(0)).collect();
     unsafe { MessageBoxW(std::ptr::null_mut(), body.as_ptr(), title.as_ptr(), MB_OK | MB_ICONERROR); }
 }
+const BOTD: &[u8] = include_bytes!("../../target/release/botd.exe");
+const BOTCTL: &[u8] = include_bytes!("../../target/release/botctl.exe");
+
+fn install_backend(dir: &std::path::Path) -> Result<PathBuf, String> {
+    let bin = dir.join("bin");
+    std::fs::create_dir_all(&bin).map_err(|e| e.to_string())?;
+    for (name, bytes) in [("botd.exe", BOTD), ("botctl.exe", BOTCTL)] {
+        let path = bin.join(name);
+        if std::fs::read(&path).ok().as_deref() != Some(bytes) {
+            std::fs::write(&path, bytes).map_err(|e| format!("Could not prepare {name}: {e}"))?;
+        }
+    }
+    Ok(bin.join("botd.exe"))
+}
+
 fn start() -> Result<(Child, String), String> {
     let dir = std::env::var_os("LOCALAPPDATA").map(PathBuf::from).ok_or("LOCALAPPDATA is unavailable")?.join("SuperBot");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    let exe = std::env::current_exe().map_err(|e| e.to_string())?.parent().ok_or("Cannot locate app")?.join("botd.exe");
+    let exe = install_backend(&dir)?;
     let port = TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?.local_addr().map_err(|e| e.to_string())?.port();
     let mut child = Command::new(exe).current_dir(&dir).env("PORT", port.to_string()).env("HOST", "127.0.0.1").env("SCREENS", "off").env("SUPERBOT_DESKTOP", "1")
         .env("DATA_DIR", dir.join("data")).env("WORKSPACE_DIR", dir.join("workspace"))
@@ -61,4 +76,20 @@ fn main() {
             *flow = ControlFlow::Exit;
         }
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn extracts_both_backend_programs_and_repairs_changes() {
+        let dir = std::env::temp_dir().join(format!("superbot-test-{}", std::process::id()));
+        let exe = install_backend(&dir).unwrap();
+        assert_eq!(std::fs::read(&exe).unwrap(), BOTD);
+        assert_eq!(std::fs::read(dir.join("bin/botctl.exe")).unwrap(), BOTCTL);
+        std::fs::write(&exe, b"broken").unwrap();
+        install_backend(&dir).unwrap();
+        assert_eq!(std::fs::read(&exe).unwrap(), BOTD);
+        std::fs::remove_dir_all(dir).unwrap();
+    }
 }

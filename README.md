@@ -111,4 +111,4 @@ MIT
 
 ## Windows desktop app
 
-For a native Windows window and build instructions, see [Windows desktop app](desktop/README.md).
+Download **SuperBot-Windows.exe** from the [Releases page](https://github.com/kshabanaa/superbot-windows/releases/latest). For setup and source build instructions, see [Windows desktop app](desktop/README.md).

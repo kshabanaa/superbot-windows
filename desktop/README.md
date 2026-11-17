@@ -1,17 +1,15 @@
-# Windows desktop app
+# SuperBot Windows
 
-The desktop app opens SuperBot in a native Windows window using Microsoft Edge WebView2. It starts the local server automatically and stops it when the window closes. It requires Windows, the WebView2 Runtime, Rust with the MSVC toolchain, and Visual Studio C++ build tools.
+Download `SuperBot-Windows.exe` from the repository's Releases page and double-click it. It opens in a Windows window and starts its own server. On first launch it places its bundled backend files in `%LOCALAPPDATA%\SuperBot\bin`. Chats and workspace files are saved in `%LOCALAPPDATA%\SuperBot`.
 
-From the repository root in PowerShell:
+Microsoft Edge WebView2 Runtime and a supported, signed-in agent CLI (Claude Code, Codex, or Pi) are required. The default bot uses Claude Code. Routines run while the app is open. The Linux virtual screen is not available on Windows. The upstream adapters bypass agent permission prompts, so agents can act with your Windows account permissions.
+
+To build from source on Windows, install the Rust MSVC toolchain and Visual Studio C++ build tools. In PowerShell from the repository root:
 
 ```powershell
 cargo build --release --locked
 cargo build --release --locked --manifest-path desktop/Cargo.toml
-New-Item -ItemType Directory -Force dist/SuperBot | Out-Null
-Copy-Item desktop/target/release/superbot-desktop.exe dist/SuperBot/SuperBot.exe
-Copy-Item target/release/botd.exe, target/release/botctl.exe dist/SuperBot/
+Copy-Item desktop/target/release/superbot-desktop.exe SuperBot-Windows.exe
 ```
 
-Run `dist/SuperBot/SuperBot.exe`. Keep all three executables together. Data is stored in `%LOCALAPPDATA%\SuperBot`; routines run while the app is open. Install and sign in to a supported agent CLI separately. The default bot uses Claude Code.
-
-The Windows virtual desktop is not implemented; the Screen feature requires Linux display tools. Desktop launch, the UI, server shutdown, and a simulated agent reply have been tested. Real agent runs and cancellation need further verification. The upstream adapters bypass agent permission prompts, so agents can act with the permissions of the current user.
+Build the server first: the desktop build embeds its two executable files. Real agent runs and cancellation need further verification.
